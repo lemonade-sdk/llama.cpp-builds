@@ -1,0 +1,172 @@
+name: Test Llama.cpp + CUDA
+on:
+  workflow_dispatch:
+    inputs:
+      operating_systems:
+        description: "Operating systems to test on (comma-separated: ubuntu)"
+        required: false
+        default: "ubuntu"
+      sm_targets:
+        description: "CUDA sm_ targets to test (comma-separated)"
+        required: false
+        default: "sm_86"
+      release_tag:
+        description: 'Release tag to test (e.g., b1001) or "latest" for the most recent release'
+        required: false
+        default: "latest"
+
+env:
+  OPERATING_SYSTEMS: ${{ github.event.inputs.operating_systems || 'ubuntu' }}
+  SM_TARGETS: ${{ github.event.inputs.sm_targets || 'sm_86' }}
+  RELEASE_TAG: ${{ github.event.inputs.release_tag || 'latest' }}
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      ubuntu_matrix: ${{ steps.set-matrix.outputs.ubuntu_matrix }}
+      should_test_ubuntu: ${{ steps.set-matrix.outputs.should_test_ubuntu }}
+      release_tag: ${{ steps.get-release.outputs.release_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: get-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          input_tag="${RELEASE_TAG}"
+
+          if [ "${input_tag}" = "latest" ]; then
+            release_tag=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest" \
+              | jq -r '.tag_name')
+            echo "Resolved 'latest' to: ${release_tag}"
+          else
+            release_tag="${input_tag}"
+            response_code=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/${release_tag}")
+            if [ "${response_code}" != "200" ]; then
+              echo "ERROR: Release '${release_tag}' does not exist (HTTP ${response_code})"
+              exit 1
+            fi
+          fi
+
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Build matrix from inputs
+        id: set-matrix
+        run: |
+          targets="${SM_TARGETS}"
+          oses="${OPERATING_SYSTEMS}"
+
+          ubuntu_matrix="[]"
+          should_test_ubuntu="false"
+
+          IFS=',' read -ra targets_arr <<< "${targets}"
+          all_entries="[]"
+          for t in "${targets_arr[@]}"; do
+            t=$(echo "${t}" | xargs)
+            if [ -n "${t}" ]; then
+              all_entries=$(echo "${all_entries}" | \
+                python3 -c "import sys, json; a=json.load(sys.stdin); a.append({'sm_target':'${t}'}); print(json.dumps(a))")
+            fi
+          done
+
+          if echo "${oses}" | grep -q "ubuntu"; then
+            ubuntu_matrix="${all_entries}"
+            should_test_ubuntu="true"
+          fi
+
+          echo "ubuntu_matrix=${ubuntu_matrix}" >> "$GITHUB_OUTPUT"
+          echo "should_test_ubuntu=${should_test_ubuntu}" >> "$GITHUB_OUTPUT"
+          echo "Ubuntu test matrix: ${ubuntu_matrix}"
+
+  # Smoke test the published release artifacts (no GPU; CPU-only checks).
+  # Validates: binary present, libs bundled, RPATH set, --version exits 0.
+  test-ubuntu:
+    runs-on: ubuntu-24.04
+    needs: prepare-matrix
+    if: needs.prepare-matrix.outputs.should_test_ubuntu == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.ubuntu_matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq
+
+      - name: Download release artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_tag="${{ needs.prepare-matrix.outputs.release_tag }}"
+          target="${{ matrix.sm_target }}"
+          repo="${{ github.repository }}"
+
+          # Release assets are named: llama-${TAG}-ubuntu-cuda-${sm_target}-x64.tar.xz
+          asset_name="llama-${release_tag}-ubuntu-cuda-${target}-x64.tar.xz"
+
+          echo "Looking for asset: ${asset_name}"
+
+          release_url="https://api.github.com/repos/${repo}/releases/tags/${release_tag}"
+          release_data=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "${release_url}")
+
+          download_url=$(echo "${release_data}" | jq -r ".assets[] | select(.name == \"${asset_name}\") | .browser_download_url")
+
+          if [ "${download_url}" = "null" ] || [ -z "${download_url}" ]; then
+            echo "ERROR: Asset '${asset_name}' not found in release '${release_tag}'"
+            echo "Available assets:"
+            echo "${release_data}" | jq -r '.assets[].name'
+            exit 1
+          fi
+
+          curl -L -H "Authorization: token ${GITHUB_TOKEN}" -o "${asset_name}" "${download_url}"
+
+          mkdir -p test-bin
+          tar -xJf "${asset_name}" -C test-bin
+          ls -la test-bin/
+
+      - name: Run smoke checks
+        run: |
+          set -e
+          chmod +x ./test-bin/llama-server
+
+          echo "=== --version ==="
+          ./test-bin/llama-server --version
+
+          echo ""
+          echo "=== --list-devices ==="
+          ./test-bin/llama-server --list-devices || true
+
+          echo ""
+          echo "=== Verifying bundled CUDA libraries ==="
+          missing=()
+          for lib in libcublas libcublasLt libcurand; do
+            if ls ./test-bin/${lib}.so* 1>/dev/null 2>&1; then
+              echo "PASS: ${lib}.so found"
+            else
+              echo "FAIL: ${lib}.so not found"
+              missing+=("${lib}")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ERROR: missing required CUDA libraries: ${missing[*]}"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Verifying RPATH ==="
+          rpath=$(patchelf --print-rpath ./test-bin/llama-server 2>/dev/null || echo "")
+          if echo "${rpath}" | grep -q '\$ORIGIN'; then
+            echo "PASS: RPATH contains \$ORIGIN: ${rpath}"
+          else
+            echo "WARN: RPATH does not contain \$ORIGIN: '${rpath}'"
+          fi
