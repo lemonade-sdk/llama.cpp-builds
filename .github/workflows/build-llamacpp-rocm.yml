@@ -776,7 +776,7 @@ jobs:
         # Copy required ROCm libraries to build directory
         # If artifacts from ROCm or Llama.cpp change, you may need to update this list
         # To get a new list of all libraries, run:
-        # gather_required_libs.py --rocm-dir /opt/rocm --dest-dir llama.cpp/build/bin
+        # gather_required_libs_rocm.py --rocm-dir /opt/rocm --dest-dir llama.cpp/build/bin
         echo "Copying required ROCm libraries to build directory..."
         cp -v /opt/rocm/lib/libhipblas.so* "$build_bin_path/" 2>/dev/null || echo "libhipblas.so* not found"
         cp -v /opt/rocm/lib/librocblas.so* "$build_bin_path/" 2>/dev/null || echo "librocblas.so* not found"

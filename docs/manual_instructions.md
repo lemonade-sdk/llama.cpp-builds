@@ -1,10 +1,12 @@
-# 🔧 Manual Build Instructions
+# 🔧 Manual Build Instructions — ROCm
 
 > **⚠️ Important Notice**
-> 
-> These manual build instructions are provided for reference purposes only and may not reflect the most current build process. We cannot guarantee that these instructions are up-to-date or will work in all environments. 
-> 
-> For the most reliable and current build process, please refer to our [automated GitHub Actions workflow](../.github/workflows/build-llamacpp-rocm.yml). The workflow represents our recommended approach for building Llama.cpp with ROCm support.
+>
+> These manual build instructions are provided for reference purposes only and may not reflect the most current build process. We cannot guarantee that these instructions are up-to-date or will work in all environments.
+>
+> For the most reliable and current build process, please refer to our automated GitHub Actions workflows:
+> - [build-llamacpp-rocm.yml](../.github/workflows/build-llamacpp-rocm.yml) — ROCm builds (this document)
+> - [build-llamacpp-cuda.yml](../.github/workflows/build-llamacpp-cuda.yml) — CUDA builds (see [manual_instructions_cuda.md](manual_instructions_cuda.md))
 
 ---
 
