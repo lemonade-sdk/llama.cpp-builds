@@ -77,10 +77,9 @@ Bundle the CUDA runtime libraries alongside the binary for portable distribution
 ```bash
 build_bin_path="build/bin"
 
-cp -av /usr/local/cuda/lib64/libcudart.so*   "${build_bin_path}/" 2>/dev/null || echo "libcudart not found"
-cp -av /usr/local/cuda/lib64/libcublas.so*   "${build_bin_path}/" 2>/dev/null || echo "libcublas not found"
-cp -av /usr/local/cuda/lib64/libcublasLt.so* "${build_bin_path}/" 2>/dev/null || echo "libcublasLt not found"
-cp -av /usr/local/cuda/lib64/libcurand.so*   "${build_bin_path}/" 2>/dev/null || echo "libcurand not found"
+cp -v /usr/local/cuda/lib64/libcublas.so*   "${build_bin_path}/" 2>/dev/null || echo "libcublas not found"
+cp -v /usr/local/cuda/lib64/libcublasLt.so* "${build_bin_path}/" 2>/dev/null || echo "libcublasLt not found"
+cp -v /usr/local/cuda/lib64/libcurand.so*   "${build_bin_path}/" 2>/dev/null || echo "libcurand not found"
 ```
 
 > **Note on `libcuda.so`:** The CUDA driver library (`libcuda.so`) is part of the NVIDIA
@@ -187,7 +186,7 @@ Copy the runtime DLLs from `%CUDA_PATH%\bin` next to the built binaries:
 ```pwsh
 $buildBin = "build\bin"
 $cudaBin  = "$env:CUDA_PATH\bin"
-foreach ($pat in @("cudart64_*.dll", "cublas64_*.dll", "cublasLt64_*.dll", "curand64_*.dll")) {
+foreach ($pat in @("cudart64_*.dll","cublas64_*.dll","cublasLt64_*.dll","curand64_*.dll")) {
     Get-ChildItem -Path $cudaBin -Filter $pat | Copy-Item -Destination $buildBin
 }
 ```

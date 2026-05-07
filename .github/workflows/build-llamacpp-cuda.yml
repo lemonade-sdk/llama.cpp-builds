@@ -29,6 +29,9 @@ on:
         default: true
         type: boolean
 
+  pull_request:
+    types: [opened, synchronize, reopened]
+
   schedule:
     # 3:00 PM UTC daily — two hours after CUDA toolkit nightly builds settle
     - cron: "0 15 * * *"
@@ -460,18 +463,20 @@ jobs:
             Where-Object { $_.Name -match '(cuda|cublas|curand).*\.dll$' } |
             Format-Table Name, Length -AutoSize
 
-      # Use .zip (consistent with Windows ROCm releases) so downstream consumers
-      # can use native Windows zip handling without requiring 7-Zip or tar.exe
-      # with 7z support.
+      # 7-zip is pre-installed on all GitHub windows-2022 runners and gives
+      # xz-class LZMA2 compression, keeping assets well under GitHub's 2 GB
+      # release limit that plain zip cannot satisfy for CUDA builds.
       - name: Package artifacts
         shell: pwsh
         run: |
           $smTarget     = "${{ matrix.sm_target }}"
           $artifactName = "llama-windows-cuda-$smTarget-x64"
-          $archiveName  = "$artifactName.zip"
+          $archiveName  = "$artifactName.7z"
           $archivePath  = Join-Path (Get-Location) $archiveName
 
-          Compress-Archive -Path "llama.cpp\build\bin\*" -DestinationPath $archivePath
+          Push-Location "llama.cpp\build\bin"
+          & 7z a -t7z -mx=9 -mmt $archivePath *
+          Pop-Location
 
           echo "ARTIFACT_ARCHIVE=$archiveName" >> $env:GITHUB_ENV
           echo "ARTIFACT_NAME=$artifactName"   >> $env:GITHUB_ENV
@@ -522,7 +527,7 @@ jobs:
         run: |
           Remove-Item -Recurse -Force llama.cpp -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force build     -ErrorAction SilentlyContinue
-          Remove-Item -Force *.zip              -ErrorAction SilentlyContinue
+          Remove-Item -Force *.7z               -ErrorAction SilentlyContinue
           Remove-Item -Force *.md               -ErrorAction SilentlyContinue
 
   # ---------------------------------------------------------------------------
@@ -635,13 +640,13 @@ jobs:
             done
           done
 
-          # Windows .zip archives
+          # Windows .7z archives
           for artifact_dir in artifacts/llama-windows-cuda-*; do
             [ -d "${artifact_dir}" ] || continue
-            for f in "${artifact_dir}"/*.zip; do
+            for f in "${artifact_dir}"/*.7z; do
               [ -f "${f}" ] || continue
-              base=$(basename "${f}" .zip)
-              new_name="llama-${next_tag}-${base#llama-}.zip"
+              base=$(basename "${f}" .7z)
+              new_name="llama-${next_tag}-${base#llama-}.7z"
               cp "${f}" "release-assets/${new_name}"
             done
           done
@@ -675,7 +680,7 @@ jobs:
             echo "(it provides libcuda.so / nvcuda.dll, which cannot be redistributed)."
             echo ""
             echo "Linux:   .tar.xz archives — extract with: tar -xJf <archive>.tar.xz"
-            echo "Windows: .zip archives   — extract with: Explorer or Expand-Archive in PowerShell"
+            echo "Windows: .7z archives     — extract with: 7-Zip (https://www.7-zip.org)"
           } > "${notes_file}"
 
           asset_files=()
