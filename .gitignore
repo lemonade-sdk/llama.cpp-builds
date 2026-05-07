@@ -1,0 +1,29 @@
+# Build artifacts
+build/
+dist/
+*.zip
+*.tar.gz
+*.tar.xz
+*.7z
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Claude Code local settings (permissions, personal config)
+.claude/settings.local.json
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
