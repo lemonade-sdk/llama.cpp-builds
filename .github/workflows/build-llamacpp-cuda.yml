@@ -194,7 +194,9 @@ jobs:
 
           cmake --build llama.cpp/build --config Release -j$(nproc)
 
-      # libcuda.so is driver-provided and must NOT be bundled
+      # libcuda.so is driver-provided and must NOT be bundled.
+      # -a preserves symlink chains (.so -> .so.12 -> .so.12.x.y) to avoid
+      # duplicating file data in the archive.
       - name: Copy required CUDA libraries
         run: |
           build_bin_path="llama.cpp/build/bin"
@@ -202,11 +204,13 @@ jobs:
 
           echo "Copying CUDA runtime libraries from ${cuda_lib_path} to ${build_bin_path}"
 
-          cp -v "${cuda_lib_path}"/libcublas.so*   "${build_bin_path}/" 2>/dev/null \
+          cp -av "${cuda_lib_path}"/libcudart.so*   "${build_bin_path}/" 2>/dev/null \
+            || echo "Warning: libcudart.so not found at ${cuda_lib_path}"
+          cp -av "${cuda_lib_path}"/libcublas.so*   "${build_bin_path}/" 2>/dev/null \
             || echo "Warning: libcublas.so not found at ${cuda_lib_path}"
-          cp -v "${cuda_lib_path}"/libcublasLt.so* "${build_bin_path}/" 2>/dev/null \
+          cp -av "${cuda_lib_path}"/libcublasLt.so* "${build_bin_path}/" 2>/dev/null \
             || echo "Warning: libcublasLt.so not found at ${cuda_lib_path}"
-          cp -v "${cuda_lib_path}"/libcurand.so*   "${build_bin_path}/" 2>/dev/null \
+          cp -av "${cuda_lib_path}"/libcurand.so*   "${build_bin_path}/" 2>/dev/null \
             || echo "Warning: libcurand.so not found at ${cuda_lib_path}"
 
           echo ""
@@ -249,6 +253,21 @@ jobs:
           echo ""
           echo "=== CUDA libraries bundled ==="
           ls -la llama.cpp/build/bin/libcu*.so* 2>/dev/null || echo "No libcu*.so* found"
+
+      - name: Dynamic linker check
+        run: |
+          build_bin_path="llama.cpp/build/bin"
+
+          echo "=== Dynamic linker check ==="
+          ldd "${build_bin_path}/llama-server" | tee ldd.txt
+
+          # Fail if anything is unresolved except the driver-provided libcuda.so
+          if grep "not found" ldd.txt | grep -vE "libcuda\.so"; then
+            echo "ERROR: unresolved dynamic dependencies (excluding driver-provided libcuda.so)"
+            exit 1
+          fi
+          echo "All dependencies resolved (libcuda.so exclusion: expected)."
+          rm -f ldd.txt
 
       - name: Package artifacts
         run: |

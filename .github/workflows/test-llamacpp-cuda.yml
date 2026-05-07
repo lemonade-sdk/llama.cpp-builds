@@ -149,7 +149,7 @@ jobs:
           echo ""
           echo "=== Verifying bundled CUDA libraries ==="
           missing=()
-          for lib in libcublas libcublasLt libcurand; do
+          for lib in libcudart libcublas libcublasLt libcurand; do
             if ls ./test-bin/${lib}.so* 1>/dev/null 2>&1; then
               echo "PASS: ${lib}.so found"
             else

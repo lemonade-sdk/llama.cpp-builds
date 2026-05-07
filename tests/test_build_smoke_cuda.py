@@ -39,7 +39,7 @@ def test_binary_exists(artifact_dir: Path) -> None:
 
 
 def test_required_libs_present(artifact_dir: Path) -> None:
-    required = ["libcublas", "libcublasLt"]
+    required = ["libcudart", "libcublas", "libcublasLt"]
     missing = []
 
     for lib in required:
