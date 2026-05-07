@@ -54,7 +54,7 @@ We provide nightly builds of **llama.cpp** with both **AMD ROCm™ 7** *and* **N
 | **sm_100** | Blackwell (data center) | B100, B200, GB200 |
 | **sm_120** | Blackwell (consumer) | RTX 5060/5070/5080/5090 |
 
-**CUDA builds bundle the math runtime libraries** (`libcublas`, `libcublasLt`, `libcurand`).
+**CUDA builds bundle the runtime libraries** (`libcudart`, `libcublas`, `libcublasLt`, `libcurand`).
 The CUDA driver library (`libcuda.so` / `nvcuda.dll`) is **not** redistributable and must
 be supplied by the system's NVIDIA driver (Linux: 525+).
 
@@ -78,7 +78,7 @@ llama-bXXXX-windows-rocm-<gfx_target>-x64.zip
 
 # CUDA
 llama-bXXXX-ubuntu-cuda-<sm_target>-x64.tar.xz
-llama-bXXXX-windows-cuda-<sm_target>-x64.7z
+llama-bXXXX-windows-cuda-<sm_target>-x64.zip
 ```
 
 ### ROCm download matrix
@@ -101,6 +101,7 @@ CUDA archives use `.tar.xz` (Linux) and `.7z` (Windows). Pick the archive matchi
 `sm_` target — see the table above. All recent releases are listed in the
 [Releases](../../releases) tab.
 
+**Linux** (`.tar.xz`):
 ```
 llama-bXXXX-ubuntu-cuda-sm_75-x64.tar.xz   # Turing
 llama-bXXXX-ubuntu-cuda-sm_80-x64.tar.xz   # Ampere data center
@@ -111,7 +112,12 @@ llama-bXXXX-ubuntu-cuda-sm_100-x64.tar.xz  # Blackwell data center
 llama-bXXXX-ubuntu-cuda-sm_120-x64.tar.xz  # Blackwell consumer
 ```
 
-Extract and run:
+**Windows** (`.zip`, same format as ROCm Windows releases):
+```
+llama-bXXXX-windows-cuda-sm_86-x64.zip
+```
+
+Extract and run (Linux):
 
 ```bash
 mkdir llama-cuda && tar -xJf llama-bXXXX-ubuntu-cuda-sm_86-x64.tar.xz -C llama-cuda
@@ -121,8 +127,8 @@ cd llama-cuda
 ./llama-server -m /path/to/model.gguf -ngl 99
 ```
 
-`LD_LIBRARY_PATH` is unnecessary — RPATH is set to `$ORIGIN` so the bundled `libcublas`,
-`libcublasLt`, and `libcurand` are found automatically.
+`LD_LIBRARY_PATH` is unnecessary — RPATH is set to `$ORIGIN` so the bundled `libcudart`,
+`libcublas`, `libcublasLt`, and `libcurand` are found automatically.
 
 ---
 
